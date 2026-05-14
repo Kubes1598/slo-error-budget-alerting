@@ -1,0 +1,48 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default-slack
+  group_by: [alertname, job, slo]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Pageable burns go to PagerDuty regardless of label content.
+    - matchers: [severity="page"]
+      receiver: pagerduty
+      continue: true
+      group_wait: 0s          # page immediately
+      repeat_interval: 30m
+    - matchers: [severity="warning"]
+      receiver: slack-warnings
+
+receivers:
+  - name: default-slack
+    slack_configs:
+      - api_url: "$\{SLACK_WEBHOOK}"
+        channel: "#alerts"
+
+  - name: pagerduty
+    pagerduty_configs:
+      - routing_key: "$\{PAGERDUTY_ROUTING_KEY}"
+        description: "{{ .CommonAnnotations.summary }}"
+        details:
+          runbook: "{{ .CommonAnnotations.runbook }}"
+          job: "{{ .CommonLabels.job }}"
+          slo: "{{ .CommonLabels.slo }}"
+
+  - name: slack-warnings
+    slack_configs:
+      - api_url: "$\{SLACK_WEBHOOK}"
+        channel: "#alerts-warning"
+        title: "[{{ .Status }}] {{ .CommonLabels.alertname }} — {{ .CommonLabels.job }}"
+        text: |
+          {{ .CommonAnnotations.summary }}
+          Runbook: {{ .CommonAnnotations.runbook }}
+
+inhibit_rules:
+  # If a service is already paging, don't also send the slow-burn ticket.
+  - source_matchers: [severity="page"]
+    target_matchers: [severity="warning"]
+    equal: [job, slo]

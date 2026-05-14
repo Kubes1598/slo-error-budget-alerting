@@ -1,0 +1,54 @@
+groups:
+  - name: slo-burn-rate
+    rules:
+      # Fast burn — pageable.
+      # Both windows must breach: 1h AND 5m at 14.4x the budget consumption rate.
+      # Budget consumption rate at SLO 99.9% = 0.001 errors/req.
+      # 14.4x = 0.0144 = 1.44% error rate.
+      - alert: ErrorBudgetBurn_Page
+        expr: |
+          (
+            job:slo_errors_per_request:ratio_rate_1h > (14.4 * 0.001)
+            and
+            job:slo_errors_per_request:ratio_rate_5m > (14.4 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: page
+          slo: availability
+        annotations:
+          summary: "{{ $labels.job }} burning error budget at 14.4x — pageable"
+          description: |
+            {{ $labels.job }} is burning the error budget at >14.4x the sustainable rate
+            over the last 1h AND the last 5m. At this rate, the entire 30-day budget
+            (43m 12s of downtime) will be consumed in 2 hours.
+          runbook: "https://wiki/runbooks/slo-burn-fast"
+
+      # Slow burn — daytime ticket.
+      # 6h window AND 30m window at 6x.
+      - alert: ErrorBudgetBurn_Ticket
+        expr: |
+          (
+            job:slo_errors_per_request:ratio_rate_6h > (6 * 0.001)
+            and
+            job:slo_errors_per_request:ratio_rate_30m > (6 * 0.001)
+          )
+        for: 15m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "{{ $labels.job }} burning error budget at 6x — ticket"
+          runbook: "https://wiki/runbooks/slo-burn-slow"
+
+  - name: slo-latency-burn
+    rules:
+      - alert: LatencyP99Spike
+        expr: job:http_request_duration_seconds:p99_5m > 2
+        for: 10m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "{{ $labels.job }} p99 > 2s for 10m"
+          runbook: "https://wiki/runbooks/latency-spike"

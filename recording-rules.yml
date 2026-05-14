@@ -1,0 +1,50 @@
+groups:
+  - name: slo-error-rate
+    interval: 30s
+    rules:
+      # 5-minute error ratio
+      - record: job:slo_errors_per_request:ratio_rate_5m
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum by (job) (rate(http_requests_total[5m]))
+
+      # 30-minute error ratio
+      - record: job:slo_errors_per_request:ratio_rate_30m
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[30m]))
+          /
+          sum by (job) (rate(http_requests_total[30m]))
+
+      # 1-hour error ratio
+      - record: job:slo_errors_per_request:ratio_rate_1h
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[1h]))
+          /
+          sum by (job) (rate(http_requests_total[1h]))
+
+      # 6-hour error ratio
+      - record: job:slo_errors_per_request:ratio_rate_6h
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[6h]))
+          /
+          sum by (job) (rate(http_requests_total[6h]))
+
+  - name: slo-latency
+    interval: 30s
+    rules:
+      # p99 latency over 5 minutes
+      - record: job:http_request_duration_seconds:p99_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (job, le) (rate(http_request_duration_seconds_bucket[5m]))
+          )
+
+      # p99 latency over 1 hour
+      - record: job:http_request_duration_seconds:p99_1h
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (job, le) (rate(http_request_duration_seconds_bucket[1h]))
+          )
